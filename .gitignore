@@ -48,3 +48,6 @@ Desktop.ini
 # Optional caches
 /.turbo
 /.eslintcache
+
+# uploads (runtime video storage)
+/uploads

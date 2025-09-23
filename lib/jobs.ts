@@ -8,12 +8,14 @@ export type JobRecord = {
   progress: number; // 0..100
   resultUrl?: string;
   log?: string;
+  inputName?: string;
+  durationSec?: number;
 };
 
 const jobs = new Map<string, JobRecord>();
 
-export function createJob(id: string): JobRecord {
-  const job: JobRecord = { id, status: "queued", step: "Waiting", progress: 0 };
+export function createJob(id: string, inputName?: string): JobRecord {
+  const job: JobRecord = { id, status: "queued", step: "Waiting", progress: 0, inputName };
   jobs.set(id, job);
   return job;
 }
@@ -25,42 +27,44 @@ export function getJob(id: string) {
 export function updateJob(id: string, patch: Partial<JobRecord>) {
   const j = jobs.get(id);
   if (!j) return;
-  const updated = { ...j, ...patch };
+  const updated = { ...j, ...patch } as JobRecord;
   jobs.set(id, updated);
   return updated;
 }
 
-// Simulated pipeline for local dev. Replace with real steps later.
-export function simulatePipeline(id: string) {
-  const steps = [
-    "Video Upload",
-    "AI Transcription",
-    "Content Analysis",
-    "Scene Selection",
-    "AI Voiceover",
-    "Video Compilation",
-  ];
+import path from 'path';
+import { ensureDir, moveFile, join } from './fs';
+import { probe, makePreviewClip } from './ffmpeg';
 
-  let i = 0;
-  updateJob(id, { status: "running", step: steps[i], progress: 5 });
+export async function runStage1Real(jobId: string, tmpUploadPath: string, originalFilename: string) {
+  try {
+    updateJob(jobId, { status: "running", step: "Saving upload", progress: 5 });
 
-  const tick = () => {
-    i++;
-    if (i < steps.length) {
-      updateJob(id, {
-        step: steps[i],
-        progress: Math.min(5 + Math.floor((i / (steps.length - 1)) * 90), 95),
-      });
-      setTimeout(tick, 1200);
-    } else {
-      updateJob(id, {
-        status: "done",
-        step: "Complete",
-        progress: 100,
-        resultUrl: "/demo.mp4",
-      });
+    const ext = path.extname(originalFilename || '') || '.mp4';
+    const uploadsDir = join(process.cwd(), 'uploads', jobId);
+    const savedInputPath = join(uploadsDir, `input${ext}`);
+    await ensureDir(uploadsDir);
+    await moveFile(tmpUploadPath, savedInputPath);
+
+    updateJob(jobId, { step: "Probing video", progress: 20 });
+    try {
+      const meta = await probe(savedInputPath);
+      const duration = Number(meta?.format?.duration) || 0;
+      updateJob(jobId, { durationSec: duration });
+    } catch (probeErr: any) {
+      // Non-fatal: continue without duration if ffprobe is unavailable
+      updateJob(jobId, { log: `ffprobe failed: ${probeErr?.message || String(probeErr)}` });
     }
-  };
 
-  setTimeout(tick, 1200);
+    updateJob(jobId, { step: "Generating preview", progress: 60 });
+    const publicProcessedDir = join(process.cwd(), 'public', 'processed', jobId);
+    const outRel = join('processed', jobId, 'preview.mp4');
+    const outAbs = join(publicProcessedDir, 'preview.mp4');
+    await ensureDir(publicProcessedDir);
+    await makePreviewClip(savedInputPath, outAbs);
+
+    updateJob(jobId, { step: "Complete", progress: 100, status: "done", resultUrl: `/${outRel.replace(/\\/g, '/')}` });
+  } catch (err: any) {
+    updateJob(jobId, { status: "error", step: "Failed", log: err?.message || String(err) });
+  }
 }
