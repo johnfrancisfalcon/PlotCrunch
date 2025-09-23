@@ -1,42 +1,60 @@
-type Props = { step: number; error?: string };
+// components/ProcessingStatus.tsx
+import { useEffect, useState } from "react";
 
-export default function ProcessingStatus({ step, error }: Props) {
-  const steps = [
-    "Video Upload",
-    "AI Transcription",
-    "Content Analysis",
-    "Scene Selection",
-    "AI Voiceover",
-    "Video Compilation"
-  ];
+type Props = {
+    jobId: string;
+    onDone: (resultUrl: string) => void;
+};
 
-  return (
-    <div className="bg-brand-dark rounded-lg p-6 mt-6">
-      <h2 className="text-xl font-bold mb-4">Processing Status</h2>
-      <ul className="space-y-2">
-        {steps.map((label, i) => {
-          const idx = i + 1;
-          const isDone = idx < step;
-          const isActive = idx === step;
-          const failed = error && idx === step;
+export default function ProcessingStatus({ jobId, onDone }: Props) {
+    const [progress, setProgress] = useState(0);
+    const [step, setStep] = useState("Queued");
+    const [error, setError] = useState<string | null>(null);
 
-          return (
-            <li key={idx} className="flex items-center space-x-2">
-              {failed ? (
-                <span className="text-red-500">❌</span>
-              ) : isDone ? (
-                <span className="text-green-500">✅</span>
-              ) : isActive ? (
-                <span className="text-brand-purple">◉</span>
-              ) : (
-                <span className="text-gray-500">●</span>
-              )}
-              <span className={failed ? "text-red-400" : ""}>{label}</span>
-              {failed && <span className="ml-2 text-sm text-red-400">{error}</span>}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
+    useEffect(() => {
+        let active = true;
+        const int = setInterval(async () => {
+            try {
+                const r = await fetch(`/api/jobs/${jobId}`);
+                const j = await r.json();
+                if (!r.ok) throw new Error(j?.error || "Job failed");
+                if (!active) return;
+
+                setProgress(j.progress ?? 0);
+                setStep(j.step ?? "…");
+
+                if (j.status === "error") {
+                    setError(j.log || "Processing error");
+                    clearInterval(int);
+                } else if (j.status === "done") {
+                    clearInterval(int);
+                    onDone(j.resultUrl);
+                }
+            } catch (e: any) {
+                if (!active) return;
+                setError(e.message || "Network error");
+                clearInterval(int);
+            }
+        }, 1000);
+        return () => {
+            active = false;
+            clearInterval(int);
+        };
+    }, [jobId, onDone]);
+
+    return (
+        <div className="bg-brand-dark rounded-lg p-6 mt-6">
+            <h2 className="text-xl font-bold mb-4">Processing Status</h2>
+            {error ? (
+                <p className="text-red-400">❌ {error}</p>
+            ) : (
+                <>
+                    <p className="text-gray-300">{step}</p>
+                    <div className="w-full bg-gray-800 h-3 rounded mt-3">
+                        <div className="bg-brand-purple h-3 rounded" style={{ width: `${progress}%` }} />
+                    </div>
+                </>
+            )}
+        </div>
+    );
 }

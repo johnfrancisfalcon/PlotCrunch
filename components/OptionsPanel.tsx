@@ -1,67 +1,81 @@
+// components/OptionsPanel.tsx
 import { useState } from "react";
 
-type Props = { onStart: (opts: any) => void };
+type Props = {
+    file: File;
+    onStart: (jobId: string) => void;
+};
 
-export default function OptionsPanel({ onStart }: Props) {
-  const [length, setLength] = useState("normal");
-  const [style, setStyle] = useState("standard");
-  const [subtitles, setSubtitles] = useState(false);
-  const [plotFocus, setPlotFocus] = useState(true);
+export default function OptionsPanel({ file, onStart }: Props) {
+    const [length, setLength] = useState("normal");
+    const [style, setStyle] = useState("standard");
+    const [subtitles, setSubtitles] = useState(false);
+    const [plotFocus, setPlotFocus] = useState(true);
+    const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onStart({ length, style, subtitles, plotFocus });
-  };
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!file) return alert("Please upload a video first!");
 
-  return (
-    <form onSubmit={handleSubmit} className="bg-brand-dark rounded-lg p-6 mt-4 space-y-4">
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <h3 className="font-semibold mb-2">Summary Length</h3>
-          <div className="space-y-2">
-            {[
-              { val: "extreme", label: "Extreme Short", desc: "~5% of original" },
-              { val: "short", label: "Short", desc: "~15% of original" },
-              { val: "normal", label: "Normal", desc: "~25% of original" },
-              { val: "long", label: "Long", desc: "~50% of original" },
-            ].map(opt => (
-              <label key={opt.val} className="flex items-center space-x-2">
-                <input type="radio" checked={length === opt.val} onChange={() => setLength(opt.val)} />
-                <span>{opt.label} <span className="text-xs text-gray-400">{opt.desc}</span></span>
-              </label>
-            ))}
-          </div>
-        </div>
+        setLoading(true);
+        try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("length", length);
+            fd.append("style", style);
+            fd.append("subtitles", String(subtitles));
+            fd.append("plotFocus", String(plotFocus));
 
-        <div>
-          <h3 className="font-semibold mb-2">Summary Style</h3>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
-              <input type="radio" checked={style === "standard"} onChange={() => setStyle("standard")} />
-              <span>Standard Recap <span className="text-xs text-gray-400">Professional, informative</span></span>
+            const resp = await fetch("/api/summarize", { method: "POST", body: fd });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data?.error || "Failed to start job");
+
+            onStart(data.jobId);
+        } catch (err: any) {
+            alert(err.message || "Something went wrong");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="bg-brand-dark rounded-lg p-6 mt-4 space-y-4">
+            <h2 className="text-xl font-bold">Choose Summary Options</h2>
+
+            <label className="block">
+                <span>Length:</span>
+                <select value={length} onChange={(e) => setLength(e.target.value)} className="ml-2">
+                    <option value="extreme">Extreme Short</option>
+                    <option value="short">Short</option>
+                    <option value="normal">Normal</option>
+                    <option value="long">Long</option>
+                </select>
             </label>
-            <label className="flex items-center space-x-2">
-              <input type="radio" checked={style === "fun"} onChange={() => setStyle("fun")} />
-              <span>Comedic Recap <span className="text-xs text-gray-400">Lighthearted, witty</span></span>
+
+            <label className="block">
+                <span>Style:</span>
+                <select value={style} onChange={(e) => setStyle(e.target.value)} className="ml-2">
+                    <option value="standard">Standard</option>
+                    <option value="fun">Fun</option>
+                </select>
             </label>
-          </div>
-        </div>
-      </div>
 
-      <div className="flex items-center space-x-4">
-        <label className="flex items-center space-x-2">
-          <input type="checkbox" checked={subtitles} onChange={() => setSubtitles(!subtitles)} />
-          <span>Show subtitles on video</span>
-        </label>
-        <label className="flex items-center space-x-2">
-          <input type="checkbox" checked={plotFocus} onChange={() => setPlotFocus(!plotFocus)} />
-          <span>Focus only on main plot</span>
-        </label>
-      </div>
+            <label className="block">
+                <input type="checkbox" checked={subtitles} onChange={(e) => setSubtitles(e.target.checked)} />
+                <span className="ml-2">Add subtitles overlay</span>
+            </label>
 
-      <button className="w-full bg-brand-purple py-2 rounded text-white font-semibold hover:bg-purple-700 transition">
-        ⚡ Generate Summary
-      </button>
-    </form>
-  );
+            <label className="block">
+                <input type="checkbox" checked={plotFocus} onChange={(e) => setPlotFocus(e.target.checked)} />
+                <span className="ml-2">Focus on main plot only</span>
+            </label>
+
+            <button
+                className="w-full bg-brand-purple py-2 rounded text-white font-semibold hover:bg-purple-700 transition disabled:opacity-50"
+                disabled={loading}
+            >
+                {loading ? "Starting…" : "⚡ Generate Summary"}
+            </button>
+        </form>
+    );
 }
