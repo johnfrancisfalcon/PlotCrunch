@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 type Props = {
     jobId: string;
     onDone: (resultUrl: string) => void;
+    onError?: (message: string) => void;
 };
 
-export default function ProcessingStatus({ jobId, onDone }: Props) {
+export default function ProcessingStatus({ jobId, onDone, onError }: Props) {
     const [progress, setProgress] = useState(0);
     const [step, setStep] = useState("Queued");
     const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,9 @@ export default function ProcessingStatus({ jobId, onDone }: Props) {
                 setStep(j.step ?? "…");
 
                 if (j.status === "error") {
-                    setError(j.log || "Processing error");
+                    const message = j.log || "Processing error";
+                    setError(message);
+                    onError?.(message);
                     clearInterval(int);
                 } else if (j.status === "done") {
                     clearInterval(int);
@@ -32,7 +35,9 @@ export default function ProcessingStatus({ jobId, onDone }: Props) {
                 }
             } catch (e: any) {
                 if (!active) return;
-                setError(e.message || "Network error");
+                const message = e.message || "Network error";
+                setError(message);
+                onError?.(message);
                 clearInterval(int);
             }
         }, 1000);
@@ -43,16 +48,21 @@ export default function ProcessingStatus({ jobId, onDone }: Props) {
     }, [jobId, onDone]);
 
     return (
-        <div className="bg-brand-dark rounded-lg p-6 mt-6">
-            <h2 className="text-xl font-bold mb-4">Processing Status</h2>
+        <div className="bg-brand-gray rounded-2xl shadow-lg p-8 w-full max-w-xl mt-8 border border-gray-700 text-center">
+            <h2 className="text-2xl font-bold text-white mb-6">🚀 Processing Your Video</h2>
+
             {error ? (
-                <p className="text-red-400">❌ {error}</p>
+                <p className="text-red-400 font-semibold">❌ {error}</p>
             ) : (
                 <>
-                    <p className="text-gray-300">{step}</p>
-                    <div className="w-full bg-gray-800 h-3 rounded mt-3">
-                        <div className="bg-brand-purple h-3 rounded" style={{ width: `${progress}%` }} />
+                    <p className="text-gray-300 mb-4">Step: {step}</p>
+                    <div className="w-full bg-gray-800 h-4 rounded-lg overflow-hidden">
+                        <div
+                            className="bg-brand-purple h-4 transition-all duration-500"
+                            style={{ width: `${progress}%` }}
+                        />
                     </div>
+                    <p className="text-gray-400 mt-3">{progress}% complete</p>
                 </>
             )}
         </div>

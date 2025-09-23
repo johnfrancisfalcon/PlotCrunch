@@ -39,42 +39,70 @@ export default function OptionsPanel({ file, onStart }: Props) {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="bg-brand-dark rounded-lg p-6 mt-4 space-y-4">
-            <h2 className="text-xl font-bold">Choose Summary Options</h2>
+        <form
+            onSubmit={handleSubmit}
+            className="bg-brand-gray rounded-2xl shadow-lg p-8 w-full max-w-xl space-y-6 border border-gray-700"
+        >
+            <h2 className="text-2xl font-bold text-white mb-2">⚙️ Summary Options</h2>
+            <p className="text-gray-400 text-sm mb-6">Choose how you want your summary to look and feel.</p>
 
-            <label className="block">
-                <span>Length:</span>
-                <select value={length} onChange={(e) => setLength(e.target.value)} className="ml-2">
-                    <option value="extreme">Extreme Short</option>
-                    <option value="short">Short</option>
-                    <option value="normal">Normal</option>
-                    <option value="long">Long</option>
+            {/* Length Selector */}
+            <div className="flex justify-between items-center">
+                <label className="text-gray-300">Length</label>
+                <select
+                    value={length}
+                    onChange={(e) => setLength(e.target.value)}
+                    className="bg-brand-dark border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-brand-purple"
+                >
+                    <option value="extreme">⚡ Extreme Short</option>
+                    <option value="short">⏱️ Short</option>
+                    <option value="normal">📏 Normal</option>
+                    <option value="long">🎬 Long</option>
                 </select>
-            </label>
+            </div>
 
-            <label className="block">
-                <span>Style:</span>
-                <select value={style} onChange={(e) => setStyle(e.target.value)} className="ml-2">
-                    <option value="standard">Standard</option>
-                    <option value="fun">Fun</option>
+            {/* Style Selector */}
+            <div className="flex justify-between items-center">
+                <label className="text-gray-300">Style</label>
+                <select
+                    value={style}
+                    onChange={(e) => setStyle(e.target.value)}
+                    className="bg-brand-dark border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-brand-purple"
+                >
+                    <option value="standard">📖 Standard</option>
+                    <option value="fun">😂 Fun</option>
                 </select>
-            </label>
+            </div>
 
-            <label className="block">
-                <input type="checkbox" checked={subtitles} onChange={(e) => setSubtitles(e.target.checked)} />
-                <span className="ml-2">Add subtitles overlay</span>
-            </label>
+            {/* Subtitles */}
+            <div className="flex items-center justify-between">
+                <label className="text-gray-300">Add Subtitles</label>
+                <input
+                    type="checkbox"
+                    checked={subtitles}
+                    onChange={(e) => setSubtitles(e.target.checked)}
+                    className="w-5 h-5 text-brand-purple focus:ring-brand-purple bg-brand-dark border-gray-700 rounded"
+                />
+            </div>
 
-            <label className="block">
-                <input type="checkbox" checked={plotFocus} onChange={(e) => setPlotFocus(e.target.checked)} />
-                <span className="ml-2">Focus on main plot only</span>
-            </label>
+            {/* Plot Focus */}
+            <div className="flex items-center justify-between">
+                <label className="text-gray-300">Focus on Main Plot</label>
+                <input
+                    type="checkbox"
+                    checked={plotFocus}
+                    onChange={(e) => setPlotFocus(e.target.checked)}
+                    className="w-5 h-5 text-brand-purple focus:ring-brand-purple bg-brand-dark border-gray-700 rounded"
+                />
+            </div>
 
+            {/* Submit */}
             <button
-                className="w-full bg-brand-purple py-2 rounded text-white font-semibold hover:bg-purple-700 transition disabled:opacity-50"
+                type="submit"
+                className="w-full bg-brand-purple py-3 rounded-lg text-white font-bold hover:bg-purple-700 transition disabled:opacity-50"
                 disabled={loading}
             >
-                {loading ? "Starting…" : "⚡ Generate Summary"}
+                {loading ? "⏳ Starting…" : "⚡ Generate Summary"}
             </button>
         </form>
     );

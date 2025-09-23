@@ -4,16 +4,19 @@ import UploadBox from "../components/UploadBox";
 import OptionsPanel from "../components/OptionsPanel";
 import ProcessingStatus from "../components/ProcessingStatus";
 import ResultPlayer from "../components/ResultPlayer";
+import ErrorCard from "../components/ErrorCard";
 
 export default function Home() {
     const [file, setFile] = useState<File | null>(null);
     const [jobId, setJobId] = useState<string | null>(null);
     const [resultUrl, setResultUrl] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const reset = () => {
         setFile(null);
         setJobId(null);
         setResultUrl(null);
+        setErrorMessage(null);
     };
 
     return (
@@ -36,8 +39,17 @@ export default function Home() {
                 <OptionsPanel file={file} onStart={(id) => setJobId(id)} />
             )}
 
-            {jobId && !resultUrl && (
-                <ProcessingStatus jobId={jobId} onDone={(url) => setResultUrl(url)} />
+            {jobId && !resultUrl && !errorMessage && (
+                <ProcessingStatus
+                    jobId={jobId}
+                    onDone={(url) => setResultUrl(url)}
+                    onError={(m) => setErrorMessage(m)}
+                />
+            )}
+
+            {/* Error State */}
+            {errorMessage && (
+                <ErrorCard message={errorMessage} onRetry={reset} />
             )}
 
             {resultUrl && (
