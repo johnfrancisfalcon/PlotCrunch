@@ -49,5 +49,9 @@ Desktop.ini
 /.turbo
 /.eslintcache
 
+# Ignore generated preview clips
+/Public/processed/**/preview.mp4
+/public/processed/**/preview.mp4
+
 # uploads (runtime video storage)
 /uploads
