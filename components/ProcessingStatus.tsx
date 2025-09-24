@@ -56,6 +56,9 @@ export default function ProcessingStatus({ jobId, onDone, onError }: Props) {
             ) : (
                 <>
                     <p className="text-gray-300 mb-4">Step: {step}</p>
+                    {step?.toLowerCase().includes('transcribing') && (
+                        <p className="text-gray-400 mb-2">⏳ Transcribing audio…</p>
+                    )}
                     <div className="w-full bg-gray-800 h-4 rounded-lg overflow-hidden">
                         <div
                             className="bg-brand-purple h-4 transition-all duration-500"
@@ -63,6 +66,9 @@ export default function ProcessingStatus({ jobId, onDone, onError }: Props) {
                         />
                     </div>
                     <p className="text-gray-400 mt-3">{progress}% complete</p>
+                    {step?.toLowerCase().includes('transcription complete') && (
+                        <p className="text-green-400 mt-2">✅ Transcription complete</p>
+                    )}
                 </>
             )}
         </div>

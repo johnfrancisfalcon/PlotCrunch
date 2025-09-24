@@ -42,20 +42,29 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       runStage1Real(jobId, filepath, originalFilename).catch(() => {});
     });
 
-    // After Stage 1 completes, trigger Stage 2 in background
+    // After Stage 1 completes (preview ready), trigger Stage 2 in background
     setImmediate(async () => {
       try {
-        // Poll for stage 1 completion
-        for (let i = 0; i < 60; i++) { // up to ~60s
+        // Poll for stage 1 preview readiness
+        for (let i = 0; i < 120; i++) { // up to ~120s
           const j = getJob(jobId);
           if (!j) break;
-          if (j.status === 'done') break;
+          // Stage 1 marks previewUrl and step to "Waiting to start transcription"
+          if (j.previewUrl && j.step?.toLowerCase().includes('waiting to start transcription')) break;
           if (j.status === 'error') return; // stop on error
           await new Promise(r => setTimeout(r, 1000));
         }
         const j = getJob(jobId);
-        if (j && j.status === 'done') {
+        if (j && j.previewUrl) {
+          updateJob(jobId, { step: 'Transcribing audio', progress: 75 });
           await runStage2Transcription(jobId);
+          const j2 = getJob(jobId);
+          if (j2 && j2.transcript) {
+            updateJob(jobId, { step: 'Complete', progress: 100, status: 'done', resultUrl: j2.previewUrl });
+          } else if (j2 && !j2.transcript) {
+            // Handle quota or non-fatal skip: finish with preview only
+            updateJob(jobId, { step: 'Complete (preview only)', progress: 100, status: 'done', resultUrl: j2.previewUrl });
+          }
         }
       } catch {}
     });
