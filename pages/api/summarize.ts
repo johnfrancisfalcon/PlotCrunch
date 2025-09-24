@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { IncomingForm, Files } from "formidable";
 import { v4 as uuidv4 } from "uuid";
-import { createJob, runStage1Real } from "../../lib/jobs";
+import { createJob, runStage1Real, runStage2Transcription, getJob, updateJob } from "../../lib/jobs";
 
 // Let formidable handle the multipart form
 export const config = { api: { bodyParser: false } };
@@ -31,10 +31,33 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: "Upload temp path missing" });
     }
 
+    const formLang = (fields as any)?.summaryLanguage;
+    const summaryLanguage = Array.isArray(formLang) ? formLang[0] : formLang;
+    const lang: "english" | "original" = (summaryLanguage === 'original') ? 'original' : 'english';
+
     createJob(jobId, originalFilename);
+    updateJob(jobId, { summaryLanguage: lang });
 
     setImmediate(() => {
       runStage1Real(jobId, filepath, originalFilename).catch(() => {});
+    });
+
+    // After Stage 1 completes, trigger Stage 2 in background
+    setImmediate(async () => {
+      try {
+        // Poll for stage 1 completion
+        for (let i = 0; i < 60; i++) { // up to ~60s
+          const j = getJob(jobId);
+          if (!j) break;
+          if (j.status === 'done') break;
+          if (j.status === 'error') return; // stop on error
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        const j = getJob(jobId);
+        if (j && j.status === 'done') {
+          await runStage2Transcription(jobId);
+        }
+      } catch {}
     });
 
     return res.status(200).json({ jobId });

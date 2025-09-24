@@ -35,4 +35,17 @@ export function makePreviewClip(inputPath: string, outPath: string): Promise<voi
     });
 }
 
+export async function extractAudioToMp3(inputPath: string, outPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .noVideo()
+            .audioCodec('libmp3lame')
+            .audioBitrate('128k')
+            .outputOptions(['-vn'])
+            .on('end', () => resolve())
+            .on('error', (err) => reject(err))
+            .save(outPath);
+    });
+}
+
 

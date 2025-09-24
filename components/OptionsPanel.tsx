@@ -11,6 +11,7 @@ export default function OptionsPanel({ file, onStart }: Props) {
     const [style, setStyle] = useState("standard");
     const [subtitles, setSubtitles] = useState(false);
     const [plotFocus, setPlotFocus] = useState(true);
+    const [summaryLanguage, setSummaryLanguage] = useState<"english" | "original">("english");
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -25,6 +26,7 @@ export default function OptionsPanel({ file, onStart }: Props) {
             fd.append("style", style);
             fd.append("subtitles", String(subtitles));
             fd.append("plotFocus", String(plotFocus));
+            fd.append("summaryLanguage", summaryLanguage);
 
             const resp = await fetch("/api/summarize", { method: "POST", body: fd });
             const data = await resp.json();
@@ -71,6 +73,19 @@ export default function OptionsPanel({ file, onStart }: Props) {
                 >
                     <option value="standard">📖 Standard</option>
                     <option value="fun">😂 Fun</option>
+                </select>
+            </div>
+
+            {/* Summary Language */}
+            <div className="flex justify-between items-center">
+                <label className="text-gray-300">Summary Language</label>
+                <select
+                    value={summaryLanguage}
+                    onChange={(e) => setSummaryLanguage(e.target.value as any)}
+                    className="bg-brand-dark border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-brand-purple"
+                >
+                    <option value="english">🌐 Translate to English (default)</option>
+                    <option value="original">🗣️ Keep original language</option>
                 </select>
             </div>
 
