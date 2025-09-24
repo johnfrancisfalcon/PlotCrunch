@@ -53,5 +53,9 @@ Desktop.ini
 /Public/processed/**/preview.mp4
 /public/processed/**/preview.mp4
 
+# Ignore local ASR binaries and models
+/bin/
+/models/
+
 # uploads (runtime video storage)
 /uploads

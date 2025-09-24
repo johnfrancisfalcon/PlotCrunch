@@ -13,12 +13,18 @@ export type JobRecord = {
   durationSec?: number;
   transcript?: string;
   summaryLanguage?: "english" | "original";
+  asrProvider?: "openai" | "groq";
+  asrPreferred?: "local" | "external";
+  asrUsed?: "openai" | "groq" | "local";
+  transcriptError?: string;
+  previewOnly?: boolean;
 };
 
 const jobs = new Map<string, JobRecord>();
 
 export function createJob(id: string, inputName?: string): JobRecord {
-  const job: JobRecord = { id, status: "queued", step: "Waiting", progress: 0, inputName };
+  const defaultProvider = (process.env.ASR_PROVIDER as any) || 'openai';
+  const job: JobRecord = { id, status: "queued", step: "Waiting", progress: 0, inputName, asrProvider: defaultProvider } as any;
   jobs.set(id, job);
   return job;
 }
@@ -37,9 +43,12 @@ export function updateJob(id: string, patch: Partial<JobRecord>) {
 
 import path from 'path';
 import { ensureDir, moveFile, join } from './fs';
-import { probe, makePreviewClip, extractAudioToMp3 } from './ffmpeg';
+import { probe, makePreviewClip, extractAudioToMp3, trimAudio } from './ffmpeg';
 import fs from 'fs';
 import OpenAI from 'openai';
+import { transcribeAudio } from './asr';
+
+export const MAX_TRANSCRIBE_SECONDS = Number(process.env.MAX_TRANSCRIBE_SECONDS || 60);
 
 export async function runStage1Real(jobId: string, tmpUploadPath: string, originalFilename: string) {
   try {
@@ -107,49 +116,54 @@ export async function runStage2Transcription(jobId: string) {
     }
 
     updateJob(jobId, { step: "Transcribing audio", progress: 75 });
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      timeout: 60_000,
-      baseURL: process.env.OPENAI_BASE_URL || undefined,
-      maxRetries: 0
-    } as any);
     const translate = (job.summaryLanguage || 'english') === 'english';
-    const keyPrefix = (process.env.OPENAI_API_KEY || '').slice(0, 7);
-    appendLog(`[stage2] OPENAI key loaded: ${keyPrefix ? keyPrefix + '...' : 'missing'}`);
-    appendLog(`[stage2] starting Whisper call, translate=${translate}, at ${new Date().toISOString()}`);
-    const fileStream = fs.createReadStream(audioPath);
-    let result;
-    const attempts = 3;
-    for (let attempt = 1; attempt <= attempts; attempt++) {
+
+    // Optionally trim long audio for testing cost
+    let audioForASR = audioPath;
+    if ((job.durationSec || 0) > 120 && MAX_TRANSCRIBE_SECONDS > 0) {
+      const trimmedPath = join(process.cwd(), 'uploads', jobId, `audio.trim.${MAX_TRANSCRIBE_SECONDS}.mp3`);
+      appendLog(`[stage2] trimming audio to ${MAX_TRANSCRIBE_SECONDS}s at ${trimmedPath}`);
+      await trimAudio(audioPath, trimmedPath, MAX_TRANSCRIBE_SECONDS);
       try {
-        appendLog(`[stage2] Whisper attempt ${attempt}/${attempts} ...`);
-        result = await openai.audio.transcriptions.create({
-          model: 'whisper-1',
-          file: fileStream as any,
-          translate,
-          response_format: 'json'
-        } as any);
-        break;
-      } catch (err: any) {
-        const stackLines = (err?.stack || '').split('\n').slice(0, 10).join('\n');
-        const status = err?.status || err?.statusCode;
-        appendLog(`[stage2] Whisper error attempt ${attempt}: ${err?.name || 'Error'}: ${err?.message || String(err)} (status=${status ?? 'n/a'})\n${stackLines}`);
-        if (attempt === attempts) {
-          if (status === 429) {
-            appendLog('[stage2] Quota exceeded. Skipping transcription and proceeding with preview only.');
-            // Leave status as running; caller will finalize as done with preview
-            return;
+        const st = await fs.promises.stat(trimmedPath);
+        appendLog(`[stage2] trimmed audio size=${st.size} bytes`);
+        audioForASR = trimmedPath;
+      } catch {}
+    }
+
+    let transcriptText: string | null = null;
+    let finalProvider: "openai" | "groq" | "local" | undefined = undefined;
+    const configuredProvider = ((process.env.ASR_PROVIDER as any) || 'openai') as 'openai'|'groq'|'local';
+    try {
+      appendLog(`[stage2] starting ASR (${configuredProvider}), translate=${translate}, at ${new Date().toISOString()}`);
+      transcriptText = await transcribeAudio({ provider: configuredProvider, audioPath: audioForASR, translate });
+      finalProvider = configuredProvider;
+    } catch (err: any) {
+      const status = err?.status || err?.statusCode;
+      appendLog(`[stage2] ${configuredProvider} ASR error: ${err?.message || String(err)} (status=${status ?? 'n/a'})`);
+      if (configuredProvider === 'openai') {
+        const canFallback = !!process.env.GROQ_API_KEY && (status === 429 || (status >= 500 && status < 600));
+        if (canFallback) {
+          try {
+            appendLog(`[stage2] falling back to Groq ASR...`);
+            transcriptText = await transcribeAudio({ provider: 'groq', audioPath: audioForASR, translate });
+            finalProvider = 'groq';
+          } catch (err2: any) {
+            const s2 = err2?.status || err2?.statusCode;
+            appendLog(`[stage2] Groq ASR error: ${err2?.message || String(err2)} (status=${s2 ?? 'n/a'})`);
           }
-          updateJob(jobId, { status: 'error', step: 'Failed (transcription)' });
-          return;
         }
-        await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
 
-    const text = (result as any)?.text || '';
-    appendLog(`[stage2] Whisper response received, length=${text.length}, preview="${text.slice(0, 200).replace(/\n/g, ' ')}"`);
-    updateJob(jobId, { transcript: text, step: "Transcription complete", progress: 85 });
+    if (transcriptText) {
+      appendLog(`[stage2] ASR success via ${finalProvider}, length=${transcriptText.length}, preview="${transcriptText.slice(0,200).replace(/\n/g,' ')}"`);
+      updateJob(jobId, { transcript: transcriptText, asrProvider: finalProvider as any, step: "Transcription complete", progress: 85, transcriptError: undefined });
+    } else {
+      appendLog(`[stage2] ASR failed; completing with preview only.`);
+      updateJob(jobId, { previewOnly: true, transcriptError: 'Transcription unavailable (quota or connection)', step: 'Complete (preview only)' });
+      // Leave status as running; caller marks done with preview
+    }
   } catch (err: any) {
     const stackLines = (err?.stack || '').split('\n').slice(0, 10).join('\n');
     const line = `[stage2] ${err?.name || 'Error'}: ${err?.message || String(err)}\n${stackLines}`;

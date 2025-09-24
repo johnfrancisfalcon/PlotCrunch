@@ -34,9 +34,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const formLang = (fields as any)?.summaryLanguage;
     const summaryLanguage = Array.isArray(formLang) ? formLang[0] : formLang;
     const lang: "english" | "original" = (summaryLanguage === 'original') ? 'original' : 'english';
+    const asrModeField = (fields as any)?.asrMode;
+    const asrMode = Array.isArray(asrModeField) ? asrModeField[0] : asrModeField;
+    const preferred: "local"|"external" = (asrMode === 'external') ? 'external' : 'local';
 
     createJob(jobId, originalFilename);
-    updateJob(jobId, { summaryLanguage: lang });
+    updateJob(jobId, { summaryLanguage: lang, asrPreferred: preferred });
 
     setImmediate(() => {
       runStage1Real(jobId, filepath, originalFilename).catch(() => {});

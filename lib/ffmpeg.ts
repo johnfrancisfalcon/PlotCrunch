@@ -48,4 +48,18 @@ export async function extractAudioToMp3(inputPath: string, outPath: string): Pro
     });
 }
 
+export async function trimAudio(inputPath: string, outPath: string, seconds: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .setStartTime(0)
+            .duration(seconds)
+            .noVideo()
+            .audioCodec('libmp3lame')
+            .audioBitrate('128k')
+            .on('end', () => resolve())
+            .on('error', (err) => reject(err))
+            .save(outPath);
+    });
+}
+
 

@@ -23,6 +23,9 @@ export default function ProcessingStatus({ jobId, onDone, onError }: Props) {
 
                 setProgress(j.progress ?? 0);
                 setStep(j.step ?? "…");
+                (window as any).__jobState = j;
+                // surface preview-only or transcript error banner
+                (window as any).__jobState = j;
 
                 if (j.status === "error") {
                     const message = j.log || "Processing error";
@@ -59,6 +62,9 @@ export default function ProcessingStatus({ jobId, onDone, onError }: Props) {
                     {step?.toLowerCase().includes('transcribing') && (
                         <p className="text-gray-400 mb-2">⏳ Transcribing audio…</p>
                     )}
+                    {(window as any).__jobState?.asrUsed && (
+                        <p className="text-xs text-gray-400 mb-2">Engine: {((window as any).__jobState?.asrUsed === 'local') ? 'Local' : ((window as any).__jobState?.asrUsed === 'openai') ? 'OpenAI' : 'Groq'}</p>
+                    )}
                     <div className="w-full bg-gray-800 h-4 rounded-lg overflow-hidden">
                         <div
                             className="bg-brand-purple h-4 transition-all duration-500"
@@ -66,6 +72,27 @@ export default function ProcessingStatus({ jobId, onDone, onError }: Props) {
                         />
                     </div>
                     <p className="text-gray-400 mt-3">{progress}% complete</p>
+                    {(((window as any).__jobState?.previewOnly) || (window as any).__jobState?.transcriptError) && (
+                        <div className="mt-3 text-sm text-yellow-300">
+                            Transcription deferred: {(window as any).__jobState?.transcriptError || 'quota/connection issue'}
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await fetch(`/api/jobs/${jobId}/retry-transcription`, { method: 'POST' });
+                                        alert('Retry started');
+                                    } catch (e) {
+                                        alert('Retry failed');
+                                    }
+                                }}
+                                className="ml-3 inline-block bg-brand-purple hover:bg-purple-700 text-white font-semibold px-3 py-1 rounded"
+                            >
+                                Retry Transcription
+                            </button>
+                        </div>
+                    )}
+                    {((window as any).__jobState?.asrPreferred === 'external' && (window as any).__jobState?.asrUsed === 'local') && (
+                        <p className="text-xs text-yellow-300 mt-2">External API unavailable; fell back to Local.</p>
+                    )}
                     {step?.toLowerCase().includes('transcription complete') && (
                         <p className="text-green-400 mt-2">✅ Transcription complete</p>
                     )}

@@ -12,6 +12,7 @@ export default function OptionsPanel({ file, onStart }: Props) {
     const [subtitles, setSubtitles] = useState(false);
     const [plotFocus, setPlotFocus] = useState(true);
     const [summaryLanguage, setSummaryLanguage] = useState<"english" | "original">("english");
+    const [asrMode, setAsrMode] = useState<"local" | "external">("local");
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -27,6 +28,7 @@ export default function OptionsPanel({ file, onStart }: Props) {
             fd.append("subtitles", String(subtitles));
             fd.append("plotFocus", String(plotFocus));
             fd.append("summaryLanguage", summaryLanguage);
+            fd.append("asrMode", asrMode);
 
             const resp = await fetch("/api/summarize", { method: "POST", body: fd });
             const data = await resp.json();
@@ -86,6 +88,19 @@ export default function OptionsPanel({ file, onStart }: Props) {
                 >
                     <option value="english">🌐 Translate to English (default)</option>
                     <option value="original">🗣️ Keep original language</option>
+                </select>
+            </div>
+
+            {/* Transcription Engine */}
+            <div className="flex justify-between items-center">
+                <label className="text-gray-300">Transcription Engine</label>
+                <select
+                    value={asrMode}
+                    onChange={(e) => setAsrMode(e.target.value as any)}
+                    className="bg-brand-dark border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-brand-purple"
+                >
+                    <option value="local">💻 Local (offline, default)</option>
+                    <option value="external">☁️ External API (OpenAI/Groq)</option>
                 </select>
             </div>
 
